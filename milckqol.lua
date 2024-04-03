@@ -66,17 +66,11 @@ function Controller.key_press_update(self, key, dt)
                 elseif keys_to_ui[key] == "sort_rank" then
                     G.FUNCS.sort_hand_suit()
                 elseif keys_to_ui[key] == "peek_deck" then
-                    if G.deck_preview then 
-                        G.buttons.states.visible = true
-                        G.deck_preview:remove()
-                        G.deck_preview = nil
-                    else 
-                        G.buttons.states.visible = false
-                        G.deck_preview = UIBox{
-                            definition = G.UIDEF.deck_preview(),
-                            config = {align='tm', offset = {x=0,y=-0.8},major = G.hand, bond = 'Weak'}
-                        }
-                    end
+                    G.buttons.states.visible = false
+                    G.deck_preview = UIBox{
+                        definition = G.UIDEF.deck_preview(),
+                        config = {align='tm', offset = {x=0,y=-0.8},major = G.hand, bond = 'Weak'}
+                    }
                 end
             end
         end
@@ -88,6 +82,27 @@ function Controller.key_press_update(self, key, dt)
                 end
             elseif keys_to_ui[key] == "deck_info" then
                 G.FUNCS.deck_info()
+            end
+        end
+    end
+end
+
+local keyrelease_ref = Controller.key_release_update
+function Controller.key_release_update(self, key, dt)
+    keyrelease_ref(self, key, dt)
+    keys_to_ui = {
+        ["lshift"] = "peek_deck",
+    }
+    if G.STAGE == G.STAGES.RUN then
+        if G.STATE == G.STATES.SELECTING_HAND then
+            if tableContains(keys_to_ui, key) then
+                if keys_to_ui[key] == "peek_deck" then
+                    if G.deck_preview then
+                        G.buttons.states.visible = true
+                        G.deck_preview:remove()
+                        G.deck_preview = nil
+                    end
+                end
             end
         end
     end
