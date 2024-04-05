@@ -13,30 +13,31 @@ Use [1] - [0] to select cards 1 through 10. To go above 10, use the +10 modifier
 ### Selecting not-a-hand
 
 In order to select Jokers, consumables (Specrtals / Tarots / Planets) and other slots, use modifiers that change your selection category:
-- [J] to select Jokers
-- [C] to select cards in a consumable area
-- [V] to select Vouchers in the shop
-- [B] to select Booster packs and their cards
-For anything else (your playing hand and main shop slots) do not specify the category. As a shortcut, you can double the category key to select the first item in the category (for example, [V] + [V] to select the first Voucher)
+- [ J ] to select Jokers
+- [ C ] to select cards in a consumable area
+- [ V ] to select Vouchers in the shop
+- [ B ] to select Booster packs and their cards
+
+For anything else (your playing hand and main shop slots) do not specify the category. As a shortcut, you can double the category key to select the first item in the category (for example, [ V ] + [ V ] to select the first Voucher)
 
 ### Card actions
 
 Once you've selected the card, you might consider doing something with it. Right now the following actions are supported:
-- [W] to buy the card from shop / redeem a Voucher / open a Booster pack
-- [S] to sell the card in your possession
-- [U] to use / buy and use consumable
-- [,] / [.] to move your card left/right in the hand order
-- [H] to display card information (usually available when you hover over it)
+- [ W ] to buy the card from shop / redeem a Voucher / open a Booster pack
+- [ S ] to sell the card in your possession
+- [ U ] to use / buy and use consumable
+- [ , ] / [ . ] to move your card left/right in the hand order
+- [ H ] to display card information (usually available when you hover over it)
 
 ### Other actions
 
-- [Enter] to play hand / exit shop / start a blind
-- [Space] to discard hand / skip a blind / skip a Booster pack
-- [R] to reroll the shop / the boss blind
-- [A] to open the Run Info window
-- [D] to open the Deck Info window
-- Hold [Left Shift] to peek at your deck information
-- [Z] / [X] to sort your hand by rank / suit
+- [ Enter ] to play hand / exit shop / start a blind
+- [ Space ] to discard hand / skip a blind / skip a Booster pack
+- [ R ] to reroll the shop / the boss blind
+- [ A ] to open the Run Info window
+- [ D ] to open the Deck Info window
+- Hold [ Left Shift ] to peek at your deck information
+- [ Z ] / [ X ] to sort your hand by rank / suit
 
 ### Binding layouts
 
