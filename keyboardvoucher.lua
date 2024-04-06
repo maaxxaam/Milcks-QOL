@@ -98,6 +98,14 @@ Keybindings.hold_state_callback = {
 --    [G.STATES.STANDARD_PACK] = function (key, dt) Keybindings:pack_hold_callback(key, dt) end,
 --    [G.STATES.BUFFOON_PACK] = function (key, dt) Keybindings:pack_hold_callback(key, dt) end,
 }
+Keybindings.action_callbacks = {
+    [Keybindings.ACTIONS.BUY] = function (area, card) Keybindings:buy_action_callback(area, card) end,
+    [Keybindings.ACTIONS.SELL] = function (area, card) Keybindings:sell_action_callback(area, card) end,
+    [Keybindings.ACTIONS.MOVE_LEFT] = function (area, card) Keybindings:move_action_callback(area, card, -1) end,
+    [Keybindings.ACTIONS.MOVE_RIGHT] = function (area, card) Keybindings:move_action_callback(area, card, 1) end,
+    [Keybindings.ACTIONS.USE] = function (area, card) Keybindings:use_action_callback(area, card) end,
+    [Keybindings.ACTIONS.HOVER] = function (area, card) Keybindings:hover_action_callback(area, card) end,
+}
 
 local keyupdate_ref = Controller.key_press_update
 function Controller.key_press_update(self, key, dt)
@@ -108,176 +116,163 @@ function Controller.key_press_update(self, key, dt)
         end
 
         if tableContains(Keybindings.keys_to_nums, key) then
-            local affected_area = Keybindings:getAffectedArea(Keybindings.mod_active_type)
-            if affected_area then
-                num = Keybindings.keys_to_nums[key]
-                local shorter_addition = Keybindings.total_addition % ((#affected_area.cards - 1) / 10 * 10)
-                num = num + shorter_addition
-                Keybindings.total_addition = 0
-                if num > #affected_area.cards then num = #affected_area.cards end
-                if Keybindings.mod_active_type ~= Keybindings.mod_last_type and Keybindings.mod_last_type ~= Keybindings.MODS.DEFAULT then
-                    local affected_old = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                    if affected_old then Keybindings:unhighlight(affected_old) end
-                end
-                if affected_area == G.hand then
-                    local card = G.hand.cards[num]
-                    if card.highlighted then
-                        G.hand:remove_from_highlighted(card, false)
-                        play_sound('cardSlide2', nil, 0.3)
-                    else
-                        G.hand:add_to_highlighted(card)
-                        Keybindings.last_card = num
-                        Keybindings.mod_last_type = Keybindings.mod_active_type
-                        Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
-                    end
-                elseif num > 0 then
-                    Keybindings:unhighlight(affected_area)
-                    affected_area:add_to_highlighted(affected_area.cards[num])
-                    Keybindings.last_card = num
-                    Keybindings.mod_last_type = Keybindings.mod_active_type
-                    Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
-                end
-            end
-        end
-
-        if tableContains(Keybindings.keys_to_run, key) then
-            if Keybindings.keys_to_run[key] == "run_info" then
-                local run_info_button = G.HUD:get_UIE_by_ID('run_info_button')
-                if run_info_button.config.button == 'run_info' then
-                    G.FUNCS.run_info()
-                end
-            elseif Keybindings.keys_to_run[key] == "deck_info" then
+            Keybindings:handle_selection(Keybindings.keys_to_nums[key])
+        elseif tableContains(Keybindings.keys_to_run, key) then
+            local action = Keybindings.keys_to_run[key]
+            if action == "run_info" then
+                G.FUNCS.run_info()
+            elseif action == "deck_info" then
                 G.FUNCS.deck_info()
             end
-        end
-        if tableContains(Keybindings.keys_to_mods, key) then
-            local new_mode = Keybindings.keys_to_mods[key]
-            if Keybindings.mod_active_type == new_mode then
-                local affected_area = Keybindings:getAffectedArea(new_mode)
-                if affected_area ~= nil then
-                    Keybindings:unhighlight(affected_area)
-                    if Keybindings.mod_last_type == new_mode then
-                        Keybindings.mod_last_type = Keybindings.MODS.DEFAULT
-                        Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
-                    else 
-                        if #affected_area.cards > 0 then 
-                            Keybindings.mod_last_type = new_mode
-                            Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
-                            affected_area:add_to_highlighted(affected_area.cards[1]) 
-                            Keybindings.last_card = 1
-                        end
-                    end
-                end
-            else 
-                if new_mode ~= Keybindings.mod_last_type and Keybindings.mod_last_type ~= Keybindings.MODS.DEFAULT then
-                    local affected_old = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                    Keybindings:unhighlight(affected_old)
-                end
-                Keybindings.mod_active_type = new_mode
-            end
-        end
-        if tableContains(Keybindings.keys_to_acts, key) then
+        elseif tableContains(Keybindings.keys_to_mods, key) then
+            Keybindings:handle_mods(Keybindings.keys_to_mods[key])
+        elseif tableContains(Keybindings.keys_to_acts, key) then
             local action = Keybindings.keys_to_acts[key]
-            if action == Keybindings.ACTIONS.HOVER then
-                local area = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                if area then
-                    if area.cards[Keybindings.last_card].children.h_popup then
-                        area.cards[Keybindings.last_card]:stop_hover()
-                    else
-                        area.cards[Keybindings.last_card]:hover()
-                    end
-                end
-            elseif action == Keybindings.ACTIONS.SELL then
-                local area = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                if area and area.cards[Keybindings.last_card]:can_sell_card() then
-                    area.cards[Keybindings.last_card]:sell_card()
-                end
-            elseif action == Keybindings.ACTIONS.USE then
-                local area = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                if area then
-                    local card = area.cards[Keybindings.last_card]
-                    if G.STATE == G.STATES.SHOP then
-                        local buy_use_button = card.children.buy_and_use
-                        if buy_use_button and buy_use_button.UIRoot.config.button then
-                            G.FUNCS.buy_from_shop(buy_use_button.UIRoot)
-                        end
-                    else
-                        if area.cards[Keybindings.last_card]:can_use_consumeable() then
-                            G.FUNCS.use_card({ config = { ref_table = card } })
-                        end
-                    end
-                end
-            elseif action == Keybindings.ACTIONS.ANOTHER_TEN then
+            if action == Keybindings.ACTIONS.ANOTHER_TEN then
                 Keybindings.total_addition = Keybindings.total_addition + 10
-            elseif action == Keybindings.ACTIONS.BUY then
+            else
                 local area = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                if area then
-                    local card = area.cards[Keybindings.last_card]
-                    local buy_button = card.children.buy_button
-                    if buy_button and buy_button.UIRoot.config.button then
-                        print(tprint(buy_button.UIRoot.config))
-                        if Keybindings.mod_last_type == Keybindings.MODS.BOOSTER then
-                            G.FUNCS.use_card(buy_button.UIRoot)
-                        elseif Keybindings.mod_last_type == Keybindings.MODS.VOUCHER then
-                            G.FUNCS.use_card(buy_button.UIRoot)
-                        else
-                            G.FUNCS.buy_from_shop(buy_button.UIRoot)
-                        end
-                    end
-                end
-            end
-        end
-
-        if tableContains(Keybindings.keys_to_acts, key) then
-            local action = Keybindings.keys_to_acts[key]
-            if action == Keybindings.ACTIONS.MOVE_LEFT then
-                local area = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                if area then
-                    local card = area.cards[Keybindings.last_card]
-                    if Keybindings.last_card > 1 and card.states.drag.can then
-                        area.cards[Keybindings.last_card] = area.cards[Keybindings.last_card - 1]
-                        area.cards[Keybindings.last_card - 1] = card
-                        Keybindings.last_card = Keybindings.last_card - 1
-                    end
-                end
-            elseif action == Keybindings.ACTIONS.MOVE_RIGHT then
-                local area = Keybindings:getAffectedArea(Keybindings.mod_last_type)
-                if area then
-                    local card = area.cards[Keybindings.last_card]
-                    if Keybindings.last_card < #area.cards and card.states.drag.can then
-                        area.cards[Keybindings.last_card] = area.cards[Keybindings.last_card + 1]
-                        area.cards[Keybindings.last_card + 1] = card
-                        Keybindings.last_card = Keybindings.last_card + 1
-                    end
-                end
+                if area == nil then return end
+                if Keybindings.last_card < 1 and #area.cards < Keybindings.last_card then return end
+                local card = area.cards[Keybindings.last_card]
+                Keybindings.action_callbacks[action](area, card)
             end
         end
     end
 end
 
-function Keybindings:hand_press_callback(key)
-    if tableContains(Keybindings.keys_to_run, key) then
-        if Keybindings.keys_to_run[key] == "play" and not G.deck_preview then
-            local play_button = G.buttons:get_UIE_by_ID('play_button')
-            if play_button.config.button == 'play_cards_from_highlighted' then
-                G.FUNCS.play_cards_from_highlighted()
-            end
-        elseif Keybindings.keys_to_run[key] == "discard" then
-            local discard_button = G.buttons:get_UIE_by_ID('discard_button')
-            if discard_button.config.button == 'discard_cards_from_highlighted' then
-                G.FUNCS.discard_cards_from_highlighted()
-            end
-        elseif Keybindings.keys_to_run[key] == "sort_value" then
-            G.FUNCS.sort_hand_value()
-        elseif Keybindings.keys_to_run[key] == "sort_rank" then
-            G.FUNCS.sort_hand_suit()
-        elseif Keybindings.keys_to_run[key] == "peek_deck" then
-            G.buttons.states.visible = false
-            G.deck_preview = UIBox{
-                definition = G.UIDEF.deck_preview(),
-                config = {align='tm', offset = {x=0,y=-0.8},major = G.hand, bond = 'Weak'}
-            }
+function Keybindings:buy_action_callback(area, card)
+    local buy_button = card.children.buy_button
+    if buy_button and buy_button.UIRoot.config.button then
+        if Keybindings.mod_last_type == Keybindings.MODS.BOOSTER then
+            G.FUNCS.use_card(buy_button.UIRoot)
+        elseif Keybindings.mod_last_type == Keybindings.MODS.VOUCHER then
+            G.FUNCS.use_card(buy_button.UIRoot)
+        else
+            G.FUNCS.buy_from_shop(buy_button.UIRoot)
         end
+        Keybindings.last_card = 0 -- last card is inaccessible now
+    end
+end
+
+function Keybindings:move_action_callback(area, card, offset)
+    if (Keybindings.last_card + offset > 0 or Keybindings.last_card + offset <= #area.cards) and card.states.drag.can then
+        area.cards[Keybindings.last_card] = area.cards[Keybindings.last_card + offset]
+        area.cards[Keybindings.last_card + offset] = card
+        Keybindings.last_card = Keybindings.last_card + offset
+    end
+end
+
+function Keybindings:use_action_callback(area, card)
+    if G.STATE == G.STATES.SHOP then
+        local buy_use_button = card.children.buy_and_use
+        if buy_use_button and buy_use_button.UIRoot.config.button then
+            G.FUNCS.buy_from_shop(buy_use_button.UIRoot)
+        end
+        Keybindings.last_card = 0 -- last card is inaccessible now
+        return
+    end -- else
+
+    if card:can_use_consumeable() then
+        G.FUNCS.use_card({ config = { ref_table = card } })
+        Keybindings.last_card = 0 -- last card is inaccessible now
+    end
+end
+
+function Keybindings:hover_action_callback(area, card)
+    if card.children.h_popup then
+        card:stop_hover()
+    else
+        card:hover()
+    end
+end
+
+function Keybindings:sell_action_callback(area, card)
+    if card:can_sell_card() then
+        card:sell_card()
+        Keybindings.last_card = 0 -- last card is inaccessible now
+    end
+end
+
+function Keybindings:handle_selection(num)
+    local affected_area = Keybindings:getAffectedArea(Keybindings.mod_active_type)
+    if affected_area == nil then return end
+
+    local shorter_addition = Keybindings.total_addition % ((#affected_area.cards - 1) / 10 * 10)
+    num = num + shorter_addition
+    Keybindings.total_addition = 0
+    if num > #affected_area.cards then num = #affected_area.cards end
+    if num == 0 then return end
+
+    if Keybindings.mod_active_type ~= Keybindings.mod_last_type and Keybindings.mod_last_type ~= Keybindings.MODS.DEFAULT then
+        local affected_old = Keybindings:getAffectedArea(Keybindings.mod_last_type)
+        if affected_old then Keybindings:unhighlight(affected_old) end
+    end
+    if affected_area == G.hand then
+        local card = G.hand.cards[num]
+        if card.highlighted then
+            G.hand:remove_from_highlighted(card, false)
+            play_sound('cardSlide2', nil, 0.3)
+        else
+            G.hand:add_to_highlighted(card)
+        end
+    else
+        Keybindings:unhighlight(affected_area)
+        affected_area:add_to_highlighted(affected_area.cards[num])
+    end
+    Keybindings.last_card = num
+    Keybindings.mod_last_type = Keybindings.mod_active_type
+    Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
+end
+
+function Keybindings:handle_mods(new_mode)
+    if Keybindings.mod_active_type ~= new_mode then
+        if new_mode ~= Keybindings.mod_last_type and Keybindings.mod_last_type ~= Keybindings.MODS.DEFAULT then
+            local affected_old = Keybindings:getAffectedArea(Keybindings.mod_last_type)
+            if affected_old then Keybindings:unhighlight(affected_old) end
+        end
+        Keybindings.mod_active_type = new_mode
+        return
+    end -- else
+    local affected_area = Keybindings:getAffectedArea(new_mode)
+    if affected_area == nil or #affected_area.cards == 0 then return end
+
+    Keybindings:unhighlight(affected_area)
+    if Keybindings.mod_last_type == new_mode then
+        Keybindings.mod_last_type = Keybindings.MODS.DEFAULT
+        Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
+    else 
+        Keybindings.mod_last_type = new_mode
+        Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
+        affected_area:add_to_highlighted(affected_area.cards[1]) 
+        Keybindings.last_card = 1
+    end
+end
+
+function Keybindings:hand_press_callback(key)
+    if tableContains(Keybindings.keys_to_run, key) == false then return end
+
+    local action = Keybindings.keys_to_run[key]
+    if action == "play" and not G.deck_preview then
+        local play_button = G.buttons:get_UIE_by_ID('play_button')
+        if play_button.config.button == 'play_cards_from_highlighted' then
+            G.FUNCS.play_cards_from_highlighted()
+        end
+    elseif action == "discard" then
+        local discard_button = G.buttons:get_UIE_by_ID('discard_button')
+        if discard_button.config.button == 'discard_cards_from_highlighted' then
+            G.FUNCS.discard_cards_from_highlighted()
+        end
+    elseif action == "sort_value" then
+        G.FUNCS.sort_hand_value()
+    elseif action == "sort_rank" then
+        G.FUNCS.sort_hand_suit()
+    elseif action == "peek_deck" then
+        G.buttons.states.visible = false
+        G.deck_preview = UIBox{
+            definition = G.UIDEF.deck_preview(),
+            config = {align='tm', offset = {x=0,y=-0.8},major = G.hand, bond = 'Weak'}
+        }
     end
 end
 
@@ -285,18 +280,20 @@ function Keybindings:blind_press_callback(key)
     if G.blind_select == nil then return end
     if tableContains(Keybindings.keys_to_run, key) == false then return end
 
-    if Keybindings.keys_to_run[key] == "play" then
+    local action = Keybindings.keys_to_run[key]
+    if action == "play" then
         local select_blind_button = G.blind_select:get_UIE_by_ID(G.GAME.blind_on_deck).UIBox:get_UIE_by_ID('select_blind_button')
         if select_blind_button then G.FUNCS.select_blind(select_blind_button) end
-    elseif Keybindings.keys_to_run[key] == "discard" then
+    elseif action == "discard" then
         local skip_blind_button = G.blind_select:get_UIE_by_ID(G.GAME.blind_on_deck)
         if skip_blind_button then G.FUNCS.skip_blind(skip_blind_button) end
-    elseif Keybindings.keys_to_run[key] == "reroll" then
-        local row_blind = G.blind_prompt_box:get_UIE_by_ID('prompt_dynatext1')
-        local choose_blind = row_blind.parent.parent
-        local reroll_blind_button = choose_blind.children[3].children[1]
-        if reroll_blind_button.config.button == "reroll_boss" then
-            G.FUNCS.reroll_boss(reroll_blind_button)
+    elseif action == "reroll" then
+        local row_blind = G.blind_prompt_box:get_UIE_by_ID('prompt_dynatext1').parent.parent.children[3]
+        if row_blind then
+            local reroll_blind_button = row_blind.children[1]
+            if reroll_blind_button.config.button == "reroll_boss" then
+                G.FUNCS.reroll_boss(reroll_blind_button)
+            end
         end
     end
 end
@@ -305,10 +302,10 @@ function Keybindings:shop_press_callback(key)
     if G.shop == nil then return end
     if tableContains(Keybindings.keys_to_run, key) == false then return end
 
-    if Keybindings.keys_to_run[key] == "play" then
-        local next_round_button = G.shop:get_UIE_by_ID('next_round_button')
-        G.FUNCS.toggle_shop(next_round_button)
-    elseif Keybindings.keys_to_run[key] == "reroll" then
+    local action = Keybindings.keys_to_run[key]
+    if action == "play" then
+        G.FUNCS.toggle_shop()
+    elseif action == "reroll" then
         local reroll_shop_button = G.shop:get_UIE_by_ID('next_round_button').parent.children[2]
         -- if config.button is empty, then we cannot reroll because player is bankrupt
         if reroll_shop_button.config.button then
@@ -328,8 +325,8 @@ end
 function Keybindings:round_press_callback(key)
     if tableContains(Keybindings.keys_to_run, key) == false then return end
 
-    if Keybindings.keys_to_run[key] == "play" then
-        G.FUNCS.cash_out(G.round_eval)
+    if Keybindings.keys_to_run[key] == "play" and G.round_eval then
+        if G.GAME.blind.name == '' then G.FUNCS.cash_out(G.round_eval) end
     end
 end
 
