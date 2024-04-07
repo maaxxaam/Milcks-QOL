@@ -58,6 +58,7 @@ Tested and written for [Steamodded v0.9.5](https://github.com/Steamopollys/Steam
 ### Bugs
 
 - Trying to spam cash out before "Cash out" button is shown may lead to: lower cash out, multiple cash out, crashes. Please wait until "Cash out" button is shown.
+
 Will be updated as new issues open.
 
 ### Planned/Missing features

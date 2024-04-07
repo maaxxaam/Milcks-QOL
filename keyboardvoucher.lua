@@ -151,7 +151,7 @@ function Keybindings:buy_action_callback(area, card)
         else
             G.FUNCS.buy_from_shop(buy_button.UIRoot)
         end
-        Keybindings.last_card = 0 -- last card is inaccessible now
+        Keybindings:resetLastCard()
     end
 end
 
@@ -164,18 +164,28 @@ function Keybindings:move_action_callback(area, card, offset)
 end
 
 function Keybindings:use_action_callback(area, card)
-    if G.STATE == G.STATES.SHOP then
-        local buy_use_button = card.children.buy_and_use
+    if G.STATE == G.STATES.SHOP and Keybindings.mod_last_type == Keybindings.MODS.DEFAULT then
+        local buy_use_button = card.children.buy_and_use_button
         if buy_use_button and buy_use_button.UIRoot.config.button then
             G.FUNCS.buy_from_shop(buy_use_button.UIRoot)
+            Keybindings:resetLastCard()
         end
-        Keybindings.last_card = 0 -- last card is inaccessible now
         return
     end -- else
 
-    if card:can_use_consumeable() then
+    if (G.STATE == G.STATES.STANDARD_PACK or G.STATE == G.STATES.BUFFOON_PACK) and Keybindings.mod_last_type == Keybindings.MODS.DEFAULT then
+        local use_button = card.children.use_button
+        if use_button then
+            if use_button.UIRoot.children[1].config.button then 
+                G.FUNCS.use_card({ config = { ref_table = card } }) 
+                Keybindings:resetLastCard()
+            end
+        end
+    end
+
+    if card.ability.consumeable and card:can_use_consumeable() then
         G.FUNCS.use_card({ config = { ref_table = card } })
-        Keybindings.last_card = 0 -- last card is inaccessible now
+        Keybindings:resetLastCard()
     end
 end
 
@@ -189,8 +199,8 @@ end
 
 function Keybindings:sell_action_callback(area, card)
     if card:can_sell_card() then
-        card:sell_card()
-        Keybindings.last_card = 0 -- last card is inaccessible now
+        G.FUNCS.sell_card({ config = { ref_table = card } })
+        Keybindings:resetLastCard()
     end
 end
 
@@ -198,11 +208,14 @@ function Keybindings:handle_selection(num)
     local affected_area = Keybindings:getAffectedArea(Keybindings.mod_active_type)
     if affected_area == nil then return end
 
-    local shorter_addition = Keybindings.total_addition % ((#affected_area.cards - 1) / 10 * 10)
+    local shorter_addition = 0
+    if Keybindings.total_addition > 0 and #affected_area.cards > 10 then
+        shorter_addition = Keybindings.total_addition % ((#affected_area.cards - 1) / 10 * 10) 
+    end
     num = num + shorter_addition
     Keybindings.total_addition = 0
     if num > #affected_area.cards then num = #affected_area.cards end
-    if num == 0 then return end
+    if num <= 0 then return end
 
     if Keybindings.mod_active_type ~= Keybindings.mod_last_type and Keybindings.mod_last_type ~= Keybindings.MODS.DEFAULT then
         local affected_old = Keybindings:getAffectedArea(Keybindings.mod_last_type)
@@ -380,7 +393,7 @@ function Keybindings:getAffectedArea(type)
     if type == Keybindings.MODS.DEFAULT then
         if G.STATE == G.STATES.SHOP then
             return G.shop_jokers
-        elseif G.STATE == G.STATES.STANDARD_PACk or G.STATE == G.STATES.BUFFOON_PACK or G.STATE == G.STATES.PLANET_PACK then
+        elseif G.STATE == G.STATES.STANDARD_PACK or G.STATE == G.STATES.BUFFOON_PACK or G.STATE == G.STATES.PLANET_PACK then
             return G.pack_cards
         else
             return G.hand
@@ -415,6 +428,12 @@ function Keybindings:unhighlight(area)
         end
     end
     area:unhighlight_all()
+end
+
+function Keybindings:resetLastCard()
+    Keybindings.last_card = 0
+    Keybindings.mod_last_type = Keybindings.MODS.DEFAULT
+    Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
 end
 
 function tprint (tbl, indent)
