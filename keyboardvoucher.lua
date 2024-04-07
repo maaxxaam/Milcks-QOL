@@ -15,6 +15,11 @@ Keybindings.MODS = {
     VOUCHER = 4,
     BOOSTER = 5,
 }
+Keybindings.META = {
+    NONE = 1,
+    HELP = 2,
+    SETTINGS = 3,
+}
 Keybindings.ACTIONS = {
     BUY = 1,
     SELL = 2,
@@ -42,6 +47,10 @@ Keybindings.keys_to_mods = {
     ["v"] = Keybindings.MODS.VOUCHER,
     ["b"] = Keybindings.MODS.BOOSTER,
 }
+Keybindings.keys_to_meta = {
+    ["/"] = Keybindings.META.HELP,
+    ["?"] = Keybindings.META.SETTINGS,
+}
 Keybindings.keys_to_acts = {
     ["="] = Keybindings.ACTIONS.ANOTHER_TEN,
     [","] = Keybindings.ACTIONS.MOVE_LEFT,
@@ -63,6 +72,7 @@ Keybindings.keys_to_run = {
 }
 Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
 Keybindings.mod_last_type = Keybindings.MODS.DEFAULT
+Keybindings.meta_active_type = Keybindings.META.NONE
 Keybindings.total_addition = 0
 Keybindings.last_card = 1
 Keybindings.press_state_callback = {
@@ -110,6 +120,11 @@ Keybindings.action_callbacks = {
 local keyupdate_ref = Controller.key_press_update
 function Controller.key_press_update(self, key, dt)
     keyupdate_ref(self, key, dt)
+
+    if tableContains(Keybindings.keys_to_meta, key) then
+        Keybindings:handle_meta(Keybindings.keys_to_meta[key])
+    end
+
     if G.STAGE == G.STAGES.RUN then
         if Keybindings.press_state_callback[G.STATE] then
             Keybindings.press_state_callback[G.STATE](key)
@@ -260,6 +275,61 @@ function Keybindings:handle_mods(new_mode)
         affected_area:add_to_highlighted(affected_area.cards[1]) 
         Keybindings.last_card = 1
     end
+end
+
+function Keybindings:handle_meta(key)
+    sendDebugMessage("Handling meta key `" .. key .. "`", "keyboardvoucher")
+    if key == Keybindings.META.HELP then
+        if Keybindings.meta_active_type == Keybindings.META.HELP then
+            -- Help menu is already up, toggle it off
+            G.keybind_help:remove()
+            G.keybind_help = nil
+            Keybindings.meta_active_type = Keybindings.META.NONE
+        else
+            -- Show the help menu
+            G.keybind_help = UIBox{
+                definition = Keybindings:create_help_menu(),
+                config = {align='cr', offset = {x=G.ROOM.T.x + 11,y=0},major = G.ROOM_ATTACH, bond = 'Weak'}
+            }
+            G.E_MANAGER:add_event(Event({
+                blockable = false,
+                func = function()
+                    G.keybind_help.alignment.offset.x = -4
+                    return true
+                end
+            }))
+            tprint(G.keybind_help)
+            Keybindings.meta_active_type = key
+        end
+    end
+end
+
+function Keybindings:create_help_menu()
+    local t =
+        {n=G.UIT.ROOT, config={align = "cm", colour = G.C.JOKER_GREY, r = 0.1, emboss = 0.05, padding = 0.07}, nodes={
+            UIBox_dyn_container({
+            -- modifiers
+            {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                  {n=G.UIT.T, config={text = "Modifiers", scale = 0.5, colour = G.C.WHITE, shadow = true}},
+                }},
+              }},
+            {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                  {n=G.UIT.T, config={text = "blah blah blah", scale = 0.25, colour = G.C.WHITE, shadow = true}},
+                }},
+              }},
+            -- card actions
+            {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                  {n=G.UIT.T, config={text = "Card actions", scale = 0.5, colour = G.C.WHITE, shadow = true}},
+                }},
+              }}
+            -- other actions
+            -- meta
+            }, true)
+    } }
+    return t
 end
 
 function Keybindings:hand_press_callback(key)
