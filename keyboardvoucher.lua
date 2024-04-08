@@ -1,7 +1,7 @@
 --- STEAMODDED HEADER
 --- MOD_NAME: Keyboard Voucher
 --- MOD_ID: keyboardvoucher
---- MOD_AUTHOR: [maaxxaam, Milck]
+--- MOD_AUTHOR: [maaxxaam, Milck, erijohnt]
 --- MOD_DESCRIPTION: Add keyboard shortcuts to the game
 ----------------------------------------------
 ------------MOD CODE -------------------------
@@ -47,6 +47,28 @@ Keybindings.keys_to_mods = {
     ["v"] = Keybindings.MODS.VOUCHER,
     ["b"] = Keybindings.MODS.BOOSTER,
 }
+Keybindings.mod_dict = {
+    [Keybindings.MODS.JOKER] = {
+        name = "Joker",
+        colour = G.C.SECONDARY_SET.Joker,
+    },
+    [Keybindings.MODS.CONSUMABLE] = {
+        name = "Consumable",
+        colour = G.C.SECONDARY_SET.Tarot,
+    },
+    [Keybindings.MODS.VOUCHER] = {
+        name = "Voucher",
+        colour = G.C.VOUCHER,
+    },
+    [Keybindings.MODS.BOOSTER] = {
+        name = "Booster",
+        colour = G.C.BOOSTER,
+    },
+    [Keybindings.MODS.DEFAULT] = { 
+        name = "Card",
+        colour = G.C.SECONDARY_SET.Default,
+    },
+}
 Keybindings.keys_to_meta = {
     ["/"] = Keybindings.META.HELP,
     ["?"] = Keybindings.META.SETTINGS,
@@ -74,7 +96,7 @@ Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
 Keybindings.mod_last_type = Keybindings.MODS.DEFAULT
 Keybindings.meta_active_type = Keybindings.META.NONE
 Keybindings.total_addition = 0
-Keybindings.last_card = 1
+Keybindings.last_card = 0
 Keybindings.press_state_callback = {
     [G.STATES.SELECTING_HAND] = function (key) Keybindings:hand_press_callback(key) end,
     [G.STATES.SHOP] = function (key) Keybindings:shop_press_callback(key) end,
@@ -121,11 +143,12 @@ local keyupdate_ref = Controller.key_press_update
 function Controller.key_press_update(self, key, dt)
     keyupdate_ref(self, key, dt)
 
-    if tableContains(Keybindings.keys_to_meta, key) then
-        Keybindings:handle_meta(Keybindings.keys_to_meta[key])
-    end
-
     if G.STAGE == G.STAGES.RUN then
+        -- META contains only the tooltip so far, so its temporarily here
+        if tableContains(Keybindings.keys_to_meta, key) then
+            Keybindings:handle_meta(Keybindings.keys_to_meta[key])
+        end
+
         if Keybindings.press_state_callback[G.STATE] then
             Keybindings.press_state_callback[G.STATE](key)
         end
@@ -145,10 +168,21 @@ function Controller.key_press_update(self, key, dt)
             local action = Keybindings.keys_to_acts[key]
             if action == Keybindings.ACTIONS.ANOTHER_TEN then
                 Keybindings.total_addition = Keybindings.total_addition + 10
+            elseif action == Keybindings.ACTIONS.HOVER and G.STATE == G.STATES.BLIND_SELECT then
+                local current_blind = G.blind_select:get_UIE_by_ID(G.GAME.blind_on_deck)
+                local skip_blind = G.blind_select:get_UIE_by_ID('tag_container', current_blind)
+                if skip_blind then
+                    local tag_button = skip_blind.children[2].children[2]
+                    sendDebugMessage(tprint(tag_button))
+                    sendDebugMessage(tprint(tag_button.config))
+                    if tag_button.config.button then 
+                        Keybindings:tag_hover(tag_button) 
+                    end
+                end
             else
                 local area = Keybindings:getAffectedArea(Keybindings.mod_last_type)
                 if area == nil then return end
-                if Keybindings.last_card < 1 and #area.cards < Keybindings.last_card then return end
+                if Keybindings.last_card < 1 or #area.cards < Keybindings.last_card then return end
                 local card = area.cards[Keybindings.last_card]
                 Keybindings.action_callbacks[action](area, card)
             end
@@ -171,7 +205,7 @@ function Keybindings:buy_action_callback(area, card)
 end
 
 function Keybindings:move_action_callback(area, card, offset)
-    if (Keybindings.last_card + offset > 0 or Keybindings.last_card + offset <= #area.cards) and card.states.drag.can then
+    if (Keybindings.last_card + offset > 0 and Keybindings.last_card + offset <= #area.cards) and card.states.drag.can then
         area.cards[Keybindings.last_card] = area.cards[Keybindings.last_card + offset]
         area.cards[Keybindings.last_card + offset] = card
         Keybindings.last_card = Keybindings.last_card + offset
@@ -251,6 +285,8 @@ function Keybindings:handle_selection(num)
     Keybindings.last_card = num
     Keybindings.mod_last_type = Keybindings.mod_active_type
     Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
+    Keybindings:update_selected_card()
+    Keybindings:update_selected_mod()
 end
 
 function Keybindings:handle_mods(new_mode)
@@ -260,6 +296,7 @@ function Keybindings:handle_mods(new_mode)
             if affected_old then Keybindings:unhighlight(affected_old) end
         end
         Keybindings.mod_active_type = new_mode
+        Keybindings:update_selected_mod()
         return
     end -- else
     local affected_area = Keybindings:getAffectedArea(new_mode)
@@ -269,11 +306,10 @@ function Keybindings:handle_mods(new_mode)
     if Keybindings.mod_last_type == new_mode then
         Keybindings.mod_last_type = Keybindings.MODS.DEFAULT
         Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
+        Keybindings:update_selected_mod()
     else 
-        Keybindings.mod_last_type = new_mode
-        Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
-        affected_area:add_to_highlighted(affected_area.cards[1]) 
-        Keybindings.last_card = 1
+        Keybindings.mod_active_type = new_mode
+        Keybindings:handle_selection(1)
     end
 end
 
@@ -291,45 +327,97 @@ function Keybindings:handle_meta(key)
                 definition = Keybindings:create_help_menu(),
                 config = {align='cr', offset = {x=G.ROOM.T.x + 11,y=0},major = G.ROOM_ATTACH, bond = 'Weak'}
             }
-            G.E_MANAGER:add_event(Event({
-                blockable = false,
-                func = function()
-                    G.keybind_help.alignment.offset.x = -4
-                    return true
-                end
-            }))
-            tprint(G.keybind_help)
+            Keybindings:update_selected_card()
+            Keybindings:update_selected_mod()
             Keybindings.meta_active_type = key
         end
     end
 end
 
 function Keybindings:create_help_menu()
-    local t =
-        {n=G.UIT.ROOT, config={align = "cm", colour = G.C.JOKER_GREY, r = 0.1, emboss = 0.05, padding = 0.07}, nodes={
-            UIBox_dyn_container({
-            -- modifiers
-            {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
-                {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
-                  {n=G.UIT.T, config={text = "Modifiers", scale = 0.5, colour = G.C.WHITE, shadow = true}},
+    return {n=G.UIT.ROOT, config={align = "cm", colour = G.C.JOKER_GREY, r = 0.1, emboss = 0.05, padding = 0.07}, nodes={
+        {n=G.UIT.R, config = {align = "cm", padding= 0.03, colour = G.C.UI.TRANSPARENT_DARK, r=0.1}, nodes={
+            {n=G.UIT.R, config = {align = "cm", padding= 0.05, colour = G.C.DYN_UI.MAIN, r=0.1}, nodes={
+                {n=G.UIT.R, config={align = "cl", colour = G.C.DYN_UI.BOSS_DARK, r=0.1, padding = 0.08, minw = 100}, nodes={
+                    {n=G.UIT.R, config={id = "keybind_tooltip_content", align = "cl", padding = 0.05}, nodes={
+                        {n=G.UIT.R, config={align = "cl"}, nodes={
+                            {n=G.UIT.T, config={text = "Selected: ", scale = 0.4, colour = G.C.WHITE, shadow = true}},
+                            {n=G.UIT.C, config={colour = G.C.SECONDARY_SET.Default, shadow = true, padding = 0.15, r = 0.05}, nodes={
+                                {n=G.UIT.T, config={id = "selected_card_name", text = "Selected: ", scale = 0.4, colour = G.C.WHITE, shadow = true}},
+                            }},
+                        }},
+                    }},
+                    {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                        {n=G.UIT.R, config={align = "cl", r = 0.1, colour = G.C.BLACK}, nodes={
+                            {n=G.UIT.C, config={colour = G.C.SECONDARY_SET.Default, padding = 0.1, r = 0.1, align="m"}, nodes={
+                                {n=G.UIT.T, config={id = "selected_card_mod", text = "Voucher", scale = 0.3, colour = G.C.WHITE, shadow = true}},
+                            }},
+                            {n=G.UIT.T, config={text = " slot ", scale = 0.3, colour = G.C.WHITE}},
+                            {n=G.UIT.C, config={colour = G.C.L_BLACK, padding = 0.1, r = 0.1, align="m"}, nodes={
+                                {n=G.UIT.T, config={id = "selected_card_num", text = "1", scale = 0.3, colour = G.C.WHITE, shadow = true}},
+                            }},
+                        }},
+                    }},
+                    {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                        {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
+                            {n=G.UIT.T, config={text = "Will select: ", scale = 0.4, colour = G.C.WHITE}},
+                            {n=G.UIT.C, config={colour = G.C.SECONDARY_SET.Default, shadow = true, padding = 0.15, r = 0.05, align="m"}, nodes={
+                                {n=G.UIT.T, config={id = "selected_mod", text = "Cards", scale = 0.4, colour = G.C.WHITE, shadow = true}},
+                            }},
+                        }},
+                    }},
                 }},
-              }},
-            {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
-                {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
-                  {n=G.UIT.T, config={text = "blah blah blah", scale = 0.25, colour = G.C.WHITE, shadow = true}},
-                }},
-              }},
-            -- card actions
-            {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
-                {n=G.UIT.R, config={align = "cl", padding = 0.05}, nodes={
-                  {n=G.UIT.T, config={text = "Card actions", scale = 0.5, colour = G.C.WHITE, shadow = true}},
-                }},
-              }}
-            -- other actions
-            -- meta
-            }, true)
-    } }
-    return t
+            }},
+        }},
+    }}
+end
+
+function Keybindings:update_selected_card()
+    if not G.keybind_help then return end
+    local label = G.keybind_help:get_UIE_by_ID("selected_card_name")
+    local mod = G.keybind_help:get_UIE_by_ID("selected_card_mod")
+    local num = G.keybind_help:get_UIE_by_ID("selected_card_num")
+    if Keybindings.last_card == 0 then
+        label.config.text = "Nothing selected"
+        label.parent.config.colour = G.C.SECONDARY_SET.Default
+        mod.config.text = ""
+        num.config.text = ""
+        mod.parent.parent.states.visible = false
+    else
+        local card = Keybindings:getAffectedArea(Keybindings.mod_last_type).cards[Keybindings.last_card]
+        label.config.text = card.label 
+        label.parent.config.colour = G.C.SECONDARY_SET[card.ability.set] or G.C.BOOSTER
+        mod.parent.parent.states.visible = true
+        mod.config.text = " " .. Keybindings.mod_dict[Keybindings.mod_last_type].name .. " "
+        mod.parent.config.colour = Keybindings.mod_dict[Keybindings.mod_last_type].colour
+        num.config.text = " " .. tostring(Keybindings.last_card) .. " "
+    end
+    G.keybind_help:recalculate()
+    label.parent:juice_up(0.1, 0.2)
+    label:juice_up(0.1, 0.1)
+    Keybindings:slide_tooltip()
+end
+
+function Keybindings:update_selected_mod()
+    if not G.keybind_help then return end
+    local label = G.keybind_help:get_UIE_by_ID("selected_mod")
+    label.config.text = Keybindings.mod_dict[Keybindings.mod_active_type].name
+    label.parent.config.colour = Keybindings.mod_dict[Keybindings.mod_active_type].colour
+    G.keybind_help:recalculate()
+    label.parent:juice_up(nil, 0.2)
+    label:juice_up(nil, 0.1)
+    Keybindings:slide_tooltip()
+end
+
+function Keybindings:slide_tooltip()
+    local coord = G.ROOM.T.x - G.keybind_help:get_UIE_by_ID("keybind_tooltip_content").T.w - 0.5
+    G.E_MANAGER:add_event(Event({
+        blockable = false,
+        func = function()
+            G.keybind_help.alignment.offset.x = coord
+            return true
+        end
+    }))
 end
 
 function Keybindings:hand_press_callback(key)
@@ -368,7 +456,8 @@ function Keybindings:blind_press_callback(key)
         local select_blind_button = G.blind_select:get_UIE_by_ID(G.GAME.blind_on_deck).UIBox:get_UIE_by_ID('select_blind_button')
         if select_blind_button then G.FUNCS.select_blind(select_blind_button) end
     elseif action == "discard" then
-        local skip_blind_button = G.blind_select:get_UIE_by_ID(G.GAME.blind_on_deck)
+        local current_blind = G.blind_select:get_UIE_by_ID(G.GAME.blind_on_deck)
+        local skip_blind_button = G.blind_select:get_UIE_by_ID('tag_container', current_blind)
         if skip_blind_button then G.FUNCS.skip_blind(skip_blind_button) end
     elseif action == "reroll" then
         local row_blind = G.blind_prompt_box:get_UIE_by_ID('prompt_dynatext1').parent.parent.children[3]
@@ -409,7 +498,10 @@ function Keybindings:round_press_callback(key)
     if tableContains(Keybindings.keys_to_run, key) == false then return end
 
     if Keybindings.keys_to_run[key] == "play" and G.round_eval then
-        if G.GAME.blind.name == '' then G.FUNCS.cash_out(G.round_eval) end
+        local button = Keybindings:searchUIBoxWithID('cash_out_button')
+        if button and button.config.button then
+            G.FUNCS.cash_out(button)
+        end
     end
 end
 
@@ -433,6 +525,32 @@ function Keybindings:hand_release_callback(key)
             G.deck_preview = nil
         end
     end
+end
+
+function Keybindings:tag_hover(e)
+    -- Most of the code here is copied from G.FUNCS.hover_tag_proxy - 
+    -- however, we use a different variable name so engine wouldn't
+    -- try to hide our infotip
+    e.parent.states.hover.is = not e.parent.states.hover.is
+    e.states.hover.is = not e.states.hover.is
+    e.parent.states.collide.is = not e.parent.states.collide.is
+    e.states.collide.is = not e.states.collide.is
+    local _sprite = e.config.ref_table:get_uibox_table()
+    if e.parent.children.kalert then
+        e.parent.children.kalert:remove()
+        e.parent.children.kalert = nil
+    else
+        e.parent.children.kalert = UIBox{
+            definition = G.UIDEF.card_h_popup(_sprite),
+            config = {align="tm", offset = {x = 0, y = -0.1},
+            major = e.parent,
+            instance_type = 'POPUP'},
+        }
+        e.parent.children.kalert.states.collide.can = false
+    end
+    _sprite:juice_up(0.05, 0.02)
+    play_sound('paper1', math.random()*0.1 + 0.55, 0.42)
+    play_sound('tarot2', math.random()*0.1 + 0.55, 0.09)
 end
 
 local keyhold_ref = Controller.key_hold_update
@@ -504,6 +622,8 @@ function Keybindings:resetLastCard()
     Keybindings.last_card = 0
     Keybindings.mod_last_type = Keybindings.MODS.DEFAULT
     Keybindings.mod_active_type = Keybindings.MODS.DEFAULT
+    Keybindings:update_selected_mod()
+    Keybindings:update_selected_card()
 end
 
 function tprint (tbl, indent)
@@ -529,6 +649,60 @@ function tprint (tbl, indent)
     end
     toprint = toprint .. string.rep(" ", indent-2) .. "}"
     return toprint
+end
+
+function Keybindings:searchUIBoxWithID(id)
+    for k, category in pairs(G.I) do
+        for i, v in ipairs(category) do
+            if v.UIBox or v.UIRoot then
+                local search = v:get_UIE_by_ID(id)
+                if search then 
+                    if search.config.one_press then
+                        -- one_press button need to be looked up once as well.
+                        -- If we see a one_press button that we once returned,
+                        -- we skip it.
+                        if not search.looked_up then
+                            search.looked_up = true
+                            return search
+                        end
+                    else
+                        return search 
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local hijack_cash_out = G.FUNCS.cash_out
+function G.FUNCS.cash_out(e)
+    Keybindings:resetLastCard()
+    hijack_cash_out(e)
+end
+
+local hijack_play_hand = G.FUNCS.play_cards_from_highlighted
+function G.FUNCS.play_cards_from_highlighted(e)
+    -- Remove hover from any playing cards
+    if #G.hand.highlighted > 0 then
+        for i = 1, #G.hand.highlighted, 1 do
+            G.hand.highlighted[i]:stop_hover()
+        end
+    end
+    Keybindings:resetLastCard()
+    hijack_play_hand(e)
+end
+
+local hijack_reroll_shop = G.FUNCS.reroll_shop
+function G.FUNCS.reroll_shop(e)
+    Keybindings:resetLastCard()
+    hijack_reroll_shop(e)
+end
+
+local hijack_end_consumable = G.FUNCS.end_consumeable
+function G.FUNCS.end_consumeable(a, b)
+    Keybindings:resetLastCard()
+    hijack_end_consumable(a, b)
 end
 ----------------------------------------------
 ------------MOD CODE END----------------------

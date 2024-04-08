@@ -57,16 +57,16 @@ Tested and written for [Steamodded v0.9.5](https://github.com/Steamopollys/Steam
 
 ### Bugs
 
-- Trying to spam cash out before "Cash out" button is shown may lead to: lower cash out, multiple cash out, crashes. Please wait until "Cash out" button is shown.
+- When showing infotip for blind tag, tag name blinks.
+- When tooltip persists on screen after a different transition, it might get overlapped by other UI elements. For now, just reopen the tooltip until the better fix is not ready.
 
 Will be updated as new issues open.
 
 ### Planned/Missing features
 
-- Cannot open tag description when selecting blinds
+- Cannot open next tag description when selecting blinds
 - Menu navigation: selecting options, switching between tabs, etc.
 - UI for rebinding shortcuts in-game
-- In-game UI for displaying current selection (how though?)
 - "Assist" mode to show available shortcuts on game objects
 
 ## Contributing
